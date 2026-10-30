@@ -87,7 +87,7 @@ function Export-ClusterBaseline {
     .EXAMPLE
     Export-ClusterBaseline
 
-    Exports baseline information to C:\Temp.
+    Exports baseline information to C:\Windows\Build.
 
     .EXAMPLE
     Export-ClusterBaseline -OutputPath D:\Baseline
@@ -98,9 +98,15 @@ function Export-ClusterBaseline {
 
     [CmdletBinding()]
     param(
-        [string]$OutputPath = "C:\Temp"
+        [string]$OutputPath = "C:\Windows\Build"
     )
-
+    if (-not (Test-Path -Path $OutputPath)) {
+            New-Item -ItemType Directory -Path "C:\Windows\Build" | Out-Null
+            Write-Log "$OutputPath did not exist and has been created."
+    } 
+    else {
+        Write-Log "$OutputPath already exists. No action taken."
+    }
     $FunctionName = $MyInvocation.MyCommand
     Write-Log "Starting $FunctionName"
 
@@ -625,6 +631,10 @@ function Set-HeartbeatClusterNetwork {
 
     Write-Log "Connected to cluster: $($Cluster.Name)"
 
+    #Add wait to allow the Cluster Network to create
+    Write-Log "Waiting for Cluster Network"
+    Start-Sleep -Seconds 10
+    
     # Build expected heartbeat DNS record
     $CS = Get-CimInstance Win32_ComputerSystem
     $HBDNS = "$($CS.DNSHostName)-HB.$($CS.Domain)"
@@ -905,7 +915,7 @@ function Write-Log {
         [ValidateSet('Information','Warning','Error')]
         [string]$Severity = 'Information',
 
-        [string]$LogFile = 'C:\Temp\ClusterScript.log'
+        [string]$LogFile = 'C:\Windows\Build\ClusterHeartBeatScript.log'
     )
 
     $Date   = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
