@@ -625,6 +625,10 @@ function Set-HeartbeatClusterNetwork {
 
     Write-Log "Connected to cluster: $($Cluster.Name)"
 
+    #Add wait to allow the Cluster Network to create
+    Write-Log "Waiting for Cluster Network"
+    Start-Sleep -Seconds 10
+
     # Build expected heartbeat DNS record
     $CS = Get-CimInstance Win32_ComputerSystem
     $HBDNS = "$($CS.DNSHostName)-HB.$($CS.Domain)"
