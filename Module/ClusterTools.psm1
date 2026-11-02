@@ -634,6 +634,10 @@ function Set-HeartbeatClusterNetwork {
     #Add wait to allow the Cluster Network to create
     Write-Log "Waiting for Cluster Network"
     Start-Sleep -Seconds 10
+
+    #Add wait to allow the Cluster Network to create
+    Write-Log "Waiting for Cluster Network"
+    Start-Sleep -Seconds 10
     
     # Build expected heartbeat DNS record
     $CS = Get-CimInstance Win32_ComputerSystem
@@ -921,7 +925,7 @@ function Write-Log {
     $Date   = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     $Server = $env:COMPUTERNAME
 
-    $LogEntry = "$Date`t$Server`t$Severity`t$Message"
+    $LogEntry = "$Date`t$Server`t$FunctionName`t$Severity`t$Message"
 
     switch ($Severity) {
         'Information' { Write-Host $LogEntry -ForegroundColor Green }
@@ -1068,6 +1072,54 @@ function Disable-OldHeartBeatNIC {
     $FunctionName = $MyInvocation.MyCommand
     Write-Log "Starting $FunctionName"
 
+    # Heartbeat DNS record
+    #
+    $HBName = "$($env:COMPUTERNAME)-HB"
+
+    try {
+        $HBIP = (Resolve-DnsName $HBName -Type A -ErrorAction Stop).IPAddress
+    }
+    catch {
+        Write-Log -Severity Error "Failed to resolve DNS name: $HBName"
+        Write-Log "Finished $FunctionName"
+        return
+    }   
+
+        Write-Log "Heartbeat DNS IP: $HBIP"
+        $HBNICName = "HeartBeat"
+
+        # Validate HB network before disabling HBX
+        $HBAdapter = Get-NetAdapter -Name $HBNICName -ErrorAction SilentlyContinue
+
+        if (-not $HBAdapter) {
+            Write-Log -Severity Error "HB adapter '$HBNICName' not found. Aborting HBX disable operation."
+            Write-Log "Finished $FunctionName"
+            return
+        }
+
+        if ($HBAdapter.Status -ne 'Up') {
+            Write-Log -Severity Error "HB adapter '$HBNICName' is not Up. Aborting HBX disable operation."
+            Write-Log "Finished $FunctionName"
+            return
+        }
+
+        $HBIPAddress = Get-NetIPAddress -InterfaceAlias $HBNICName -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+
+        if (-not $HBIPAddress) {
+            Write-Log -Severity Error "HB adapter '$HBNICName' has no IPv4 address configured. Aborting HBX disable operation."
+            Write-Log "Finished $FunctionName"
+            return
+        }
+
+        if (-not (Test-Connection -ComputerName $HBIPAddress.IPAddress -Count 2 -Quiet)) {
+            Write-Log -Severity Error "HB adapter '$HBNICName' is configured but not responding. Aborting HBX disable operation."
+            Write-Log "Finished $FunctionName"
+            return
+        }
+
+        Write-Log -Message "HB adapter '$HBNICName' validated successfully. Proceeding with HBX disable."
+
     try {
 
         #
@@ -1084,7 +1136,7 @@ function Disable-OldHeartBeatNIC {
         catch {
             Write-Log "Failed to resolve DNS name: $HBXDNS"
             Write-Log "Finished $FunctionName"
-            EXIT 9601
+            return
         }
 
         Write-Log "Heartbeat-X IP: $HBXIP"
@@ -1102,7 +1154,7 @@ function Disable-OldHeartBeatNIC {
         if (-not $Adapters) {
             Write-Log -Severity Error "No adapter found with IP address $HBXIP"
             Write-Log "Finished $FunctionName"
-            EXIT 9602
+            return
         }
 
         if (($Adapters | Measure-Object).Count -gt 1) {
@@ -1112,7 +1164,7 @@ function Disable-OldHeartBeatNIC {
                 Format-Table -AutoSize
                 
             Write-Log "Finished $FunctionName"
-            EXIT 9603
+            return
         }
 
         $OldHeartBeat = $Adapters.InterfaceAlias
@@ -1130,7 +1182,7 @@ function Disable-OldHeartBeatNIC {
             Write-Log -Severity Warning "Adapter $OldHeartBeat is already disabled"
             
             Write-Log "Finished $FunctionName"
-            EXIT 9604
+            return
         }
 
         #
@@ -1153,7 +1205,7 @@ function Disable-OldHeartBeatNIC {
         Write-Log "Statement : $($_.InvocationInfo.Line.Trim())"
 
         Write-Log -Severity Error "Finished $FunctionName"
-        EXIT 9699
+        return
     }
 
     Write-Log "Finished $FunctionName"

@@ -100,6 +100,8 @@ function Export-ClusterBaseline {
     param(
         [string]$OutputPath = "C:\Windows\Build"
     )
+
+
     $FunctionName = $MyInvocation.MyCommand
     Write-Log "Starting $FunctionName"
 
@@ -110,9 +112,6 @@ function Export-ClusterBaseline {
     else {
         Write-Log "$OutputPath already exists. No action taken."
     }
-
-    $FunctionName = $MyInvocation.MyCommand
-    Write-Log "Starting $FunctionName"
 
     try {
         $null = Get-Cluster -ErrorAction Stop
@@ -1071,6 +1070,54 @@ function Disable-OldHeartBeatNIC {
 
     $FunctionName = $MyInvocation.MyCommand
     Write-Log "Starting $FunctionName"
+
+    # Heartbeat DNS record
+    #
+    $HBName = "$($env:COMPUTERNAME)-HB"
+
+    try {
+        $HBIP = (Resolve-DnsName $HBName -Type A -ErrorAction Stop).IPAddress
+    }
+    catch {
+        Write-Log -Severity Error "Failed to resolve DNS name: $HBName"
+        Write-Log "Finished $FunctionName"
+        return
+    }   
+
+        Write-Log "Heartbeat DNS IP: $HBIP"
+        $HBNICName = "HeartBeat"
+
+        # Validate HB network before disabling HBX
+        $HBAdapter = Get-NetAdapter -Name $HBNICName -ErrorAction SilentlyContinue
+
+        if (-not $HBAdapter) {
+            Write-Log -Severity Error "HB adapter '$HBNICName' not found. Aborting HBX disable operation."
+            Write-Log "Finished $FunctionName"
+            return
+        }
+
+        if ($HBAdapter.Status -ne 'Up') {
+            Write-Log -Severity Error "HB adapter '$HBNICName' is not Up. Aborting HBX disable operation."
+            Write-Log "Finished $FunctionName"
+            return
+        }
+
+        $HBIPAddress = Get-NetIPAddress -InterfaceAlias $HBNICName -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+
+        if (-not $HBIPAddress) {
+            Write-Log -Severity Error "HB adapter '$HBNICName' has no IPv4 address configured. Aborting HBX disable operation."
+            Write-Log "Finished $FunctionName"
+            return
+        }
+
+        if (-not (Test-Connection -ComputerName $HBIPAddress.IPAddress -Count 2 -Quiet)) {
+            Write-Log -Severity Error "HB adapter '$HBNICName' is configured but not responding. Aborting HBX disable operation."
+            Write-Log "Finished $FunctionName"
+            return
+        }
+
+        Write-Log -Message "HB adapter '$HBNICName' validated successfully. Proceeding with HBX disable."
 
     try {
 
