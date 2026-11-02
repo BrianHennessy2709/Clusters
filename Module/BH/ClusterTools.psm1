@@ -100,6 +100,9 @@ function Export-ClusterBaseline {
     param(
         [string]$OutputPath = "C:\Windows\Build"
     )
+    $FunctionName = $MyInvocation.MyCommand
+    Write-Log "Starting $FunctionName"
+
     if (-not (Test-Path -Path $OutputPath)) {
             New-Item -ItemType Directory -Path "C:\Windows\Build" | Out-Null
             Write-Log "$OutputPath did not exist and has been created."
@@ -922,7 +925,7 @@ function Write-Log {
     $Date   = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     $Server = $env:COMPUTERNAME
 
-    $LogEntry = "$Date`t$Server`t$Severity`t$Message"
+    $LogEntry = "$Date`t$Server`t$FunctionName`t$Severity`t$Message"
 
     switch ($Severity) {
         'Information' { Write-Host $LogEntry -ForegroundColor Green }
