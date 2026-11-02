@@ -100,6 +100,13 @@ function Export-ClusterBaseline {
     param(
         [string]$OutputPath = "C:\Windows\Build"
     )
+    if (-not (Test-Path -Path $OutputPath)) {
+            New-Item -ItemType Directory -Path "C:\Windows\Build" | Out-Null
+            Write-Log "$OutputPath did not exist and has been created."
+    } 
+    else {
+        Write-Log "$OutputPath already exists. No action taken."
+    }
 
     $FunctionName = $MyInvocation.MyCommand
     Write-Log "Starting $FunctionName"
